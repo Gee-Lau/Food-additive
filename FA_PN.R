@@ -18,8 +18,11 @@ PNdb$GComp <- ifelse(PNdb$GComp=="有",1,0)
 PNdb$LBW <- ifelse(PNdb$Weight_child<2500,1,0)
 PNdb$HBW <- ifelse(PNdb$Weight_child>4000,1,0)
 PNdb$NComp <- ifelse(PNdb$NComp=="有",1,0)
+PNdb$GBS[PNdb$GBS=="不知道"] <- NA 
+PNdb$GBS <- ifelse(PNdb$GBS=="是",1,0)
 # PNdb$Weight_child[PNdb$Weight_child<2000|PNdb$Weight_child>5000] <- NA
-
+PNdb[,c(65:78,80:83,104:108)] <- apply(PNdb[,c(65:78,80:83,104:108)], 2, 
+                                       function(x) ifelse(grepl("No",x),0,1))
 
 # PNdb <- left_join(PNdb,MOMcomb_sub[,c(1,139:164)],"Sub_ID")
 
@@ -55,27 +58,33 @@ for (i in colnames(PNdb)[c(89:91,98)]){
 }
 
 uni_c <- data.frame()
-for (i in colnames(PNdb)[c(89:91,98)]){
+for (i in colnames(PNdb)[c(89:91)]){
   if (all(PNdb[,i]==0)|all(PNdb[,i][complete.cases(PNdb[,i])]=="1No")){
     print(i)
   }
   else {
     print(i)
-    temp_a <- glm(as.formula(paste0("Preterm~",i)),
-                  PNdb[PNdb[,i]!="Low",],family ="binomial")
-    temp_b <- cbind(summary(temp_a)$coefficients[,c(1,4)],
-                    exp(cbind(OR = coef(temp_a), 
-                              confint.default(temp_a,level = 0.95))))
-    uni_c <- rbind(uni_c,temp_b)
+    for (j in colnames(PNdb)[c(128,131,139,144,151)]){
+      temp_a <- glm(as.formula(paste0(j,"~",i)),
+                    PNdb[PNdb[,i]!="Low",],family ="binomial")
+      temp_b <- cbind(summary(temp_a)$coefficients[,c(1,4)],
+                      exp(cbind(OR = coef(temp_a), 
+                                confint.default(temp_a,level = 0.95))),
+                      Outcome = j)
+      uni_c <- rbind(uni_c,temp_b)
+    }
   }
 }
 uni_c <- uni_c[!grepl("Intercep",rownames(uni_c)),]
 # rownames(uni_c) <- colnames(HLMdb)[c(4:7,13,14,18,22:34,36)]
-uni_c <- apply(uni_c, 2, function(x) round(x,4))
+uni_c[,c(1:5)] <- apply(uni_c[,c(1:5)], 2, function(x) round(as.numeric(x),4))
 uni_c <- data.frame(uni_c)
 # uni_c <- uni_c %>% filter(Pr...z..=="<0.001"|Pr...z..<0.06)
 uni_c$Var <- rownames(uni_c)
-
+uni_c$Var <- substr(uni_c$Var,0,3)
+uni_c$Var[11:15] <- "CRN"
+uni_c <- reshape(uni_c, idvar = "Outcome", timevar = "Var", direction = "wide")
+writexl::write_xlsx(uni_c,"PN_outcomes.xlsx")
 
 mglm <- glm(`SICU/NICU`~Age+BMI+Any_disease, PNdb,family = "binomial")
 mglmtb <-  cbind(summary(mglm)$coefficients[,c(1,4)],

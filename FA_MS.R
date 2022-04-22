@@ -12,7 +12,7 @@ library("patchwork")
 
 # Correlation between MSS results and FA ques----
 
-Urine_Sweet <- data.frame(read_xlsx("Data/MOMmy_Sweetener_data.xlsx",sheet = "Urine"))
+Urine_Sweet <- data.frame(read_xlsx("Data/MOMmy_Sweetener_data.xlsx",sheet = "CB"))
 Urine_Sweet$Calculated.Amt..ng.ml. <- as.numeric(Urine_Sweet$Calculated.Amt..ng.ml.)
 Urine_Sweet$FA_ques <- MomFA$SAC[match(Urine_Sweet$ID,MomFA$Sub_ID)]
 Urine_Sweet$FA_ques[Urine_Sweet$Compound=="Aspartame"] <- MomFA$ASP[match(Urine_Sweet$ID[Urine_Sweet$Compound=="Aspartame"],
@@ -32,8 +32,8 @@ for (i in unique(Urine_Sweet$Compound)) {
     p <- ggplot(my.data,  aes(x = x, y = y)) +
       geom_point(size = 2, color = "#542788") +
       theme_classic() +
-      ylab(paste(i," in urine")) +
-      xlab(paste(i," from questionnaire")) +
+      xlab(paste(i," in urine")) +
+      ylab(paste(i," from questionnaire")) +
       stat_smooth(method = "glm",formula = y~x,  
                   se= F, size = 1.3, alpha = 0.25, color = "#e08214") +
       theme(legend.position = "none",
@@ -49,8 +49,8 @@ for (i in unique(Urine_Sweet$Compound)) {
     p <- ggplot(my.data,  aes(x = x, y = y)) +
       geom_point(size = 2, color = "#542788") +
       theme_classic() +
-      ylab(paste(i," in cord blood")) +
-      xlab(paste(i," from questionnaire")) +
+      xlab(paste(i," in cord blood")) +
+      ylab(paste(i," from questionnaire")) +
       stat_smooth(method = "glm",formula = y~x,  
                   se= F, size = 1.3, alpha = 0.25, color = "#e08214") +
       theme(legend.position = "none",
@@ -66,7 +66,7 @@ for (i in unique(Urine_Sweet$Compound)) {
 }
 
 pdf(file="CB_Ques_sweetener.pdf", width = 12, height = 6)
-wrap_plots(plot_list,ncol = 2)
+wrap_plots(plot_list,ncol = 3)
 invisible(dev.off())
 
 

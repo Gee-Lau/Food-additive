@@ -1103,3 +1103,244 @@ writexl::write_xlsx(FAsamp_db,"Stool_MTG_21022022.xlsx")
   
   
   
+# Clinical data 4 Y1 report----
+Y1db <- data.frame(read_excel("Data/Clincal data_M12/0015_MOM_LZ_20210421B5F5 (Clinical data).xlsx")[,-c(1,5:7)])
+
+# Delivery mode/ other demo
+PdDel <- data.frame(read_excel("Data/Clincal data_M12/0015_MOM_LZ_20210421B5F5 (Clinical data).xlsx", 
+                               sheet = "REDCap Qs (D01-M12)")) %>% 
+  filter(Event.Name == "Date of Born (Arm 2: Infant)")
+
+PdDel <- PdDel[,c(1,6:26)]
+
+colnames(PdDel) <- c("MOM_SNO","Del_mode","CS_mode","Weight_child","Weight_unit_child",
+                     "NComp","NTrauma","NHypoG","NInfec","NDeformity",
+                     "NMAS","NJaundice","NAsphyxia","NRDS","NComp_Other",
+                     "NComp_Other_specific","NComp_Treatment",
+                     "Light","Medication","NComp_Treatment_Other","NComp_Treatment_Other_spe",
+                     "Del_feeding_mode")
+PdDel$Weight_child[complete.cases(PdDel$Weight_child)&PdDel$Weight_unit_child=="磅 (lb)"] <- round(PdDel$Weight_child[complete.cases(PdDel$Weight_child)&PdDel$Weight_unit_child=="磅 (lb)"]*453.6,1)
+PdDel <- PdDel %>% select(-Weight_unit_child)
+PdDel$Del_mode <- ifelse(PdDel$Del_mode=="陰道分娩", "Vag",
+                         ifelse(PdDel$Del_mode=="剖腹產","CS","Vac_or_forcep"))
+PdDel$CS_mode <- ifelse(is.na(PdDel$CS_mode),NA,
+                        ifelse(PdDel$CS_mode=="選擇性","Elective","Emergency"))
+
+PdDel[,c(5,16)] <- apply(PdDel[,c(5,16)],2,function(x)
+  ifelse(is.na(x),NA,ifelse(x=="否",0,1)))
+
+PdDel[,c(6:14,17:19)] <- apply(PdDel[,c(6:14,17:19)],2,function(x)
+  ifelse(is.na(x),NA,ifelse(x=="Unchecked",0,1)))
+PdDel$Del_feeding_mode <- ifelse(PdDel$Del_feeding_mode=="混合","Mix",
+                                 ifelse(grepl("母乳",PdDel$Del_feeding_mode),"BF","Formula"))
+Y1db <- left_join(Y1db,PdDel,"MOM_SNO")
+
+# BF hist
+PdBF <- data.frame(read_excel("Data/Clincal data_M12/0015_MOM_LZ_20210421B5F5 (Clinical data).xlsx", 
+                              sheet = "REDCap Qs (D01-M12)")) %>% 
+  filter(Event.Name != "Date of Born (Arm 2: Infant)")
+PdBF <- PdBF[,-c(2:28,34:89)]
+colnames(PdBF) <- c("MOM_SNO","Timepoint","Current_feeding_mode",
+                    "BF_mode","Feeding_mode","Weekly_BF_perc")
+PdBF <- PdBF %>% select(-Current_feeding_mode) %>% 
+  filter(complete.cases(Timepoint))
+PdBF$Timepoint <- ifelse(PdBF$Timepoint=="1個月","M1","M2")
+PdBF$BF_mode <- ifelse(PdBF$BF_mode=="混合 <貼身/埋身餵哺> 和 <使用奶瓶餵哺>","Mix",
+                       ifelse(PdBF$BF_mode=="幾乎全使用奶瓶餵哺 (≥90%時間使用奶瓶)","Pump","Direct"))
+PdBF$Feeding_mode <- ifelse(PdBF$Feeding_mode=="混合","Mix",
+                            ifelse(grepl("母乳",PdBF$Feeding_mode),"BF","Formula"))
+PdBF$Weekly_BF_perc <- str_replace(PdBF$Weekly_BF_perc,"多於",">")
+PdBF <- reshape(PdBF, idvar = "MOM_SNO", 
+                timevar = "Timepoint", direction = "wide")
+Y1db <- left_join(Y1db,PdBF,"MOM_SNO")
+
+
+PdBF_M6Y1 <- data.frame(read_excel("Data/Clincal data_M12/0015_MOM_LZ_20210421B5F5 (Clinical data).xlsx", 
+                                sheet = "REDCap Qs (D01-M12)")) %>% 
+  filter(Event.Name != "Date of Born (Arm 2: Infant)")
+PdBF_M6Y1 <- PdBF_M6Y1[,c(1,54,55)]
+colnames(PdBF_M6Y1) <- c("MOM_SNO","Timepoint","Feeding_mode")
+PdBF_M6Y1 <- PdBF_M6Y1 %>% filter(complete.cases(Timepoint))
+PdBF_M6Y1$Timepoint <- ifelse(PdBF_M6Y1$Timepoint=="6個月","M6","M12")
+PdBF_M6Y1$Feeding_mode <- ifelse(PdBF_M6Y1$Feeding_mode=="混合","Mix",
+                            ifelse(grepl("母乳",PdBF_M6Y1$Feeding_mode),"BF","Formula"))
+PdBF_M6Y1 <- reshape(PdBF_M6Y1, idvar = "MOM_SNO", 
+                timevar = "Timepoint", direction = "wide")
+Y1db <- left_join(Y1db,PdBF_M6Y1,"MOM_SNO")
+# Disease summary (clinical notes)
+Pdnotes <- data.frame(read_excel("Data/Clincal data_M12/0015_MOM_LZ_20210421B5F5 (Clinical data).xlsx", 
+                                 sheet = "Paed Notes")[,-c(1:2)]) %>% 
+  filter(ATTEND != "NO") %>% 
+  select(-VISIT_S, -ATTEND, -Anthropometric.Measurement_B,
+         -OVERALL_R, -Disease.Status.Changed1_B_NO,
+         -Disease.Status.Changed2_B_NO, -Disease.Status.Changed3_B_NO)
+colnames(Pdnotes)[11:13] <- c("Head.Circumference","Body.Weight",
+                              "Body.Height")
+Pdnotes <- reshape(Pdnotes, idvar = "MOM_SNO", 
+                   timevar = "VISIT", direction = "wide")
+Pdnotes <- Pdnotes[,c(1:12,24:45,13:23)]
+Y1db <- left_join(Y1db,Pdnotes,"MOM_SNO")
+
+# Antibiotic use
+PdATB <- data.frame(read_excel("Data/Clincal data_M12/0015_MOM_LZ_20210421B5F5 (Clinical data).xlsx", 
+                                sheet = "ATB Record")[,-c(1,2)])
+PdATB$STOPD[is.na(PdATB$STOPD)] <- ymd(substr(PdATB$STARTD[is.na(PdATB$STOPD)] +
+  PdATB$DURATION[is.na(PdATB$STOPD)],0,10))
+PdATB <- PdATB %>% mutate(ATB_Period = paste0(STARTD," - ",STOPD),
+                          ATB_Dur = as.numeric(ymd(STOPD)-ymd(STARTD))+1) %>% 
+  group_by(MOM_SNO) %>% 
+  summarise(ATB_used = paste0(ATB_NAME, collapse = ";"),
+            ATB_indication = paste0(IND_OTH, collapse = ";"),
+            ATB_period = paste0(ATB_Period, collapse = ";"),
+            ATB_dur = paste0(ATB_Dur, collapse = ";"),
+            ATB_dursum = sum(ATB_Dur,na.rm = T),
+            ATB_route = paste0(ROUTE[!duplicated(ROUTE)],collapse = ";")) %>% 
+  filter(ATB_route!="TOPICAL"|ATB_route!="OTHER")
+Y1db <- left_join(Y1db,PdATB,"MOM_SNO")
+
+# Other medication
+PdMed <- data.frame(read_excel("Data/Clincal data_M12/0015_MOM_LZ_20210421B5F5 (Clinical data).xlsx", 
+                               sheet = "Med Record")[,-c(1:2)])
+PdMed$STOPD[is.na(PdMed$STOPD)] <- ymd(substr(PdMed$STARTD[is.na(PdMed$STOPD)] +
+                                                PdMed$DURATION[is.na(PdMed$STOPD)],0,10))
+PdMed <- PdMed %>% mutate(Med_Period = paste0(STARTD," - ",STOPD),
+                          Med_Dur = as.numeric(ymd(STOPD)-ymd(STARTD))+1) %>% 
+  group_by(MOM_SNO) %>% 
+  summarise(Med_used = paste0(MED_NAME, collapse = ";"),
+            Med_indication = paste0(IND_OTH, collapse = ";"),
+            Med_period = paste0(Med_Period, collapse = ";"),
+            Med_dur = paste0(Med_Dur, collapse = ";"),
+            Med_dursum = sum(Med_Dur,na.rm = T),
+            Med_dursum = sum(Med_Dur,na.rm = T),
+            Med_route = paste0(ROUTE[!duplicated(ROUTE)],collapse = ";")) %>% 
+  filter(Med_route!="TOPICAL"|ATB_route!="OTHER")
+Y1db <- left_join(Y1db,PdMed,"MOM_SNO")
+Y1db$Any_ATB_Y1 <- ifelse(is.na(Y1db$ATB_used),0,1)
+Y1db$Any_Med_Y1 <- ifelse(is.na(Y1db$Med_used),0,1)
+
+Y1metadata <- Y1db[,c(1:6,25,28,30,31,32:39,43:50,54:61,
+                      65:72,88,89)]
+Y1metadata <- Y1metadata %>% select(colnames(Y1metadata)[!grepl("_B_R.",colnames(Y1metadata))])
+
+Y1metadata$Samp_name <- colnames(OTU_list)[match(substr(Y1metadata$MOM_SNO,7,9),
+                                                 substr(colnames(OTU_list),2,4))]
+Y1metadata$Samp_name <- str_replace(Y1metadata$Samp_name,"X","")
+Y1metadata <- Y1metadata[,c(33,1:32)]
+Y1metadata$Samp_name <- str_replace(Y1metadata$Samp_name,"\\.","-")
+# 
+# Y1metadata$Any_ATB_Y1 <- Y1db$Any_ATB_Y1[match(Y1metadata$MOM_SNO,Y1db$MOM_SNO)]
+# Y1metadata$Any_Med_Y1 <- Y1db$Any_Med_Y1[match(Y1metadata$MOM_SNO,Y1db$MOM_SNO)]
+Y1metadata <- Y1metadata %>% select(-Feeding_mode.M12,-Feeding_mode.M6)
+Y1metadata$BMI_Group <- MOMcomb[MOMcomb$Sex=="F",]$BMI_Group[match(substr(Y1metadata$MOM_SNO,6,9),
+                                                                 substr(MOMcomb[MOMcomb$Sex=="F",]$Sub_ID,6,9))]
+Y1metadata[,c(3,10,15,20,25)] <- apply(Y1metadata[,c(3,12,17,22,27)],2,
+                                       function(x) as.character(ymd(x)))
+writexl::write_xlsx(Y1metadata,"Y1_metadata_22032022.xlsx")
+
+saveRDS(Y1db,"Data/Y1_Child_dbsum.rds")
+
+Refgroup <- data.frame(read_excel("Data/Year 1/MOMmy_M12 Microbial Report_Reference Group Clinical Data 220403_TF 220411.xlsx"))
+# Refgroup <- Refgroup %>% filter(ROUTE!="TOPICAL") %>%
+#   filter(!duplicated(Study.No.))
+Y1metadata$Refgroup <- Refgroup$Reference[match(Y1metadata$MOM_SNO,Refgroup$MOM_SNO)]
+Y1metadata$Samp_name <- Refgroup$Filename[match(Y1metadata$MOM_SNO,Refgroup$MOM_SNO)]
+Y1metadata$ATB_TF <- Refgroup$Study.No.[match(Y1metadata$MOM_SNO,Refgroup$MOM_SNO)]
+Y1metadata$Med_TF <- Refgroup$Study.No.[match(Y1metadata$MOM_SNO,Refgroup$MOM_SNO)]
+Y1metadata[,c(33,34)] <- apply(Y1metadata[,c(33,34)],2,function(x)
+  ifelse(is.na(x),0,1))
+Y1metadata$Samp_name <- colnames(Y1OTU)[match(substr(Y1metadata$MOM_SNO,7,9),
+                                              substr(colnames(Y1OTU),2,4))]
+Y1metadata$Samp_name <- str_replace(Y1metadata$Samp_name,"X","")
+Y1metadata$Samp_name <- str_replace_all(Y1metadata$Samp_name,"\\.","-")
+
+PD_dis_group <- data.frame(read_excel("Data/Year 1/MOMmy_M12 Microbial Report_Reference Group Clinical Data 220403_TF 16042022.xlsx", 
+                                       sheet = "Research Notes"))  
+PD_dis_group <- PD_dis_group %>% 
+  mutate(Ecz = as.character(apply(PD_dis_group[,c(9:16)],1, function(x) 
+    ifelse(any(grepl("ECZEMA|EZCEMA",x)),1,0))),
+    Rash = as.character(apply(PD_dis_group[,c(9:16)],1, function(x) 
+      ifelse(any(grepl("RASH",x)),1,0))),
+    Allergy = as.character(apply(PD_dis_group[,c(9:16)],1, function(x) 
+      ifelse(any(grepl("ALLERG",x)),1,0))),
+    GI = as.character(apply(PD_dis_group[,c(9:16)],1, function(x) 
+      ifelse(any(grepl("DISTENSION|STOOL|CONSTIPATION|DIARRHEA|GASTROENTERITIS|
+                       GASTROINTESTIONAL|NOROVIRUS INFECTION|ROTA VIRUS",x)),1,0))),
+    URTI = as.character(apply(PD_dis_group[,c(9:16)],1, function(x) 
+      ifelse(any(grepl("COUGHING|RHINOVIRUS INFECTION|FEVER|URT",x)),1,0))),
+    Vas = as.character(apply(PD_dis_group[,c(9:16)],1, function(x) 
+      ifelse(any(grepl("CUTIS MARMORATA|PORT-WINE STAIN",x)),1,0))),
+    UTI = as.character(apply(PD_dis_group[,c(9:16)],1, function(x) 
+      ifelse(any(grepl("UTI",x)),1,0))),
+    GE = as.character(apply(PD_dis_group[,c(9:16)],1, function(x) 
+      ifelse(any(grepl("GE",x)),1,0))),
+    HEART = as.character(apply(PD_dis_group[,c(9:16)],1, function(x) 
+      ifelse(any(grepl("HEART",x)),1,0))),
+    RI = as.character(apply(PD_dis_group[,c(9:16)],1, function(x) 
+      ifelse(any(grepl("ROSEOLA",x)),1,0)))) 
+PD_dis_group <- PD_dis_group %>% 
+  filter(complete.cases(Disease.Status.Changed1_B))
+
+PD_dis_group <- PD_dis_group %>% 
+  mutate(Any_skin = as.character(apply(PD_dis_group[,c(21:23)],1, function(x) 
+    ifelse(any(x==1),1,0))),
+    Other_CD = ifelse(is.na(Disease_Notinclude),0,
+                      ifelse(Disease_Notinclude==1,0,1)))
+
+for(i in unique(PD_dis_group$Study.No.)){
+  if(any(PD_dis_group$Any_skin[PD_dis_group$Study.No.==i]==1)){
+    PD_dis_group$Any_skin[PD_dis_group$Study.No.==i] <- 1
+  }
+  if(any(PD_dis_group$Ecz[PD_dis_group$Study.No.==i]==1)){
+    PD_dis_group$Ecz[PD_dis_group$Study.No.==i] <- 1
+  }
+  if(any(PD_dis_group$Rash[PD_dis_group$Study.No.==i]==1)){
+    PD_dis_group$Rash[PD_dis_group$Study.No.==i] <- 1
+  }
+  if(any(PD_dis_group$Allergy[PD_dis_group$Study.No.==i]==1)){
+    PD_dis_group$Allergy[PD_dis_group$Study.No.==i] <- 1
+  }
+  if(any(PD_dis_group$Other_CD[PD_dis_group$Study.No.==i]==1)){
+    PD_dis_group$Other_CD[PD_dis_group$Study.No.==i] <- 1
+  }
+}
+PD_dis_group_M6 <- PD_dis_group %>% filter(VISIT=="M6"|Any_skin==1|Other_CD==1) %>% 
+  filter(is.na(Disease_Notinclude)|Other_CD==1|Any_skin==1) %>% 
+  filter(!duplicated(MOM_SNO)) %>% 
+  mutate(VISIT = "M6")
+
+
+PD_dis_group_M12 <- PD_dis_group %>% filter(VISIT=="M12"|Any_skin==1|Other_CD==1) %>% 
+  # select(MOM_SNO,Disease_Notinclude,Any_skin,Other_CD,VISIT) %>% 
+  filter(is.na(Disease_Notinclude)|Other_CD==1|Any_skin==1) %>% 
+  filter(!duplicated(MOM_SNO))%>% 
+  mutate(VISIT = "M12")
+# colnames(PD_dis_group_M12)[24:30] <- paste0(colnames(PD_dis_group_M12)[24:30],"_M12")
+PD_dis_group_M12$Disease <- apply(PD_dis_group_M12[,21:30], 1, function(x)
+  paste0(colnames(PD_dis_group_M12)[21:30][x==1], collapse = ", "))
+PD_dis_group_M12$Disease[PD_dis_group_M12$Disease==""] <- "Others"
+PD_dis_group_M12$Disease <- ifelse(grepl(",",PD_dis_group_M12$Disease),"Multiple",
+                                   PD_dis_group_M12$Disease)
+
+Y1metadata <- left_join(Y1metadata,PdBF_M6Y1,"MOM_SNO")
+Y1metadata <- Y1metadata[,c(1:7,15,16,8:13)]
+
+Y1metadata$Disease_M6 <- ifelse(is.na(PD_dis_group_M6$MOM_SNO[match(Y1metadata$MOM_SNO,
+                                                       PD_dis_group_M6$MOM_SNO)]),0,1)
+Y1metadata$Disease_M12 <- ifelse(is.na(PD_dis_group_M12$MOM_SNO[match(Y1metadata$MOM_SNO,
+                                                                    PD_dis_group_M12$MOM_SNO)]),0,1)
+Y1metadata$Disease_Spe_M12 <- ifelse(is.na(PD_dis_group_M12$Disease[match(Y1metadata$MOM_SNO,
+                                                                      PD_dis_group_M12$MOM_SNO)]),"No",PD_dis_group_M12$Disease[match(Y1metadata$MOM_SNO,
+                                                                                                                                      PD_dis_group_M12$MOM_SNO)])
+
+a <- PD_dis_group[!duplicated(PD_dis_group$MOM_SNO),]
+Y1metadata <- left_join(Y1metadata,a[,c(3,21:25)],"MOM_SNO")
+Y1metadata[,c(18:22)] <- apply(Y1metadata[,c(18:22)], 2, function(x)
+  ifelse(is.na(x),0,as.numeric(paste(x))))
+Y1metadata <- left_join(Y1metadata,PdBF,"MOM_SNO")
+Y1metadata <- Y1metadata[,c(1:7,23:28,8:22)]
+writexl::write_xlsx(Y1metadata,"Data/Year 1/Y1_metadata_16042022.xlsx")
+
+
+
+  
+  
