@@ -71,8 +71,11 @@ PDHdb$Infancy_food_source <- ifelse(grepl("商店", PDHdb$Infancy_food_source),"
 PDHdb$Adolo_food_source <- ifelse(grepl("便利店", PDHdb$Adolo_food_source),"Preserved", "Fresh")
 
 # Build up data frame with summary dietary history overtime
-
-PDHsum <- data.frame()
+PDHdb$Infancy_food_source <- ifelse(PDHdb$Infancy_food_source=="Homemade","Yes","No")
+PDHdb$Adolo_food_source <- ifelse(PDHdb$Adolo_food_source=="Fresh","Yes","No")
+PDHsum <- data.frame(Var = colnames(PDHdb)[-c(1,41)],
+                     Perc = as.numeric(apply(PDHdb[,-c(1,41)],2,function(x) 
+                       round(sum(x=="Yes",na.rm = T)/sum(complete.cases(x))*100,1))))
 
 for (i in c(2,4:7,9:40)) {
   temp.db <- data.frame(rbind(cbind(Var = paste0(colnames(PDHdb[i]),"_M"), 
@@ -1340,7 +1343,40 @@ Y1metadata <- left_join(Y1metadata,PdBF,"MOM_SNO")
 Y1metadata <- Y1metadata[,c(1:7,23:28,8:22)]
 writexl::write_xlsx(Y1metadata,"Data/Year 1/Y1_metadata_16042022.xlsx")
 
+# Selected samples checking (11082022)----
 
+a <- data.frame(read_xlsx("~/Dropbox/g/FA/Logistics/Sample_application/0015_MOM_LZ_20210421B8_30062022_ELM_10072022.xlsx",
+                          skip = 1))
+
+colnames(a)[grepl("STUDY_NO",colnames(a))] <- "STUDY_NO"
+colnames(a)[grepl("Sample.SNO...Selected.by.applicants",colnames(a))] <- "SNO_sel"
+a <- rbind(a[,c(1,9)],
+           a[,c(16,24)],
+           a[,c(32,40)],
+           a[,c(48,56)],
+           a[,c(63,71)],
+           a[,c(76,84)],
+           a[,c(91,99)],
+           a[,c(107,115)],
+           a[,c(123,131)])
+b <- data.frame(read_xlsx("~/Dropbox/g/FA/Logistics/Sample_application/a.xlsx"))
+a <- a %>% filter(complete.cases(SNO_sel)) %>% 
+  filter(STUDY_NO %!in% b$STUDY.NO) %>% 
+  filter(startsWith(SNO_sel,"ST"))
+
+b <- data.frame(read_xlsx("~/Dropbox/g/FA/Logistics/Sample_application/0015_MOM_LZB8_05082022_status.xlsx",
+                          sheet = "Sheet1"))
+
+b <- b %>% filter(complete.cases(Check))
+
+a$Check <- b$Check[match(a$SNO_sel,b$Check)]
+a$Check[is.na(a$Check)] <- b$...2[match(a$SNO_sel[is.na(a$Check)],b$...2)]
+b$REMARKS <- str_remove(b$REMARKS,"SUBSTITUTE ")
+b$REMARKS[b$...5=="MISMATCH"&!startsWith(b$REMARKS,"ST")] <- paste0("ST",b$REMARKS[b$...5=="MISMATCH"&!startsWith(b$REMARKS,"ST")])
+a$Check[is.na(a$Check)] <- b$REMARKS[match(a$SNO_sel[is.na(a$Check)],b$REMARKS)]
+b$PWH_No <- a$STUDY_NO[match(b$Check,a$Check)]
+b$PWH_No[is.na(b$PWH_No)] <- a$STUDY_NO[match(b$REMARKS[is.na(b$PWH_No)],a$Check)]
+writexl::write_xlsx(b,"~/Dropbox/g/FA/Logistics/Sample_application/MOMmy_check.xlsx")
 
   
   

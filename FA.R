@@ -735,14 +735,15 @@ ggplot(data=WeightCh, aes(x=variable, y=value, color = Group)) +
   stat_smooth(method = "glm",formula = y~x,  
               se= F, alpha = 0.25) 
 
-
-
-
-
-
-
-
-
-
+MOM_GDM <- data.frame(read_xlsx("/media/gee/Data/REDCap/MOMmy-Mother T2 T3 Q_20210716_Wing_20210929_Shilan_20211006.xlsx"))[,c(2,6,30:32)]
+colnames(MOM_GDM) <- c("Sub_ID","Tri","Disease","Disease_type","Disease_other")
+MOM_GDM$Tri <- ifelse(MOM_GDM$Tri=="第三孕期","T3","T2")
+MOM_GDM <- MOM_GDM %>% filter(complete.cases(Tri))
+MOM_GDM$DM <- ifelse(MOM_GDM$Disease_type=="糖尿病","Yes","No")
+MOM_GDM$DM[grepl("糖尿",MOM_GDM$Disease_other)] <- "Yes"
+MOM_GDM$DM[is.na(MOM_GDM$DM)] <- "No"
+MOM_GDM <- reshape(MOM_GDM[,-(3:5)],timevar = "Tri",idvar = "Sub_ID",direction = "wide")
+colnames(MOM_GDM)[2:3] <- c("T2_DM","T3_DM")
+MOMcomb_sub <- merge(MOMcomb_sub,MOM_GDM,"Sub_ID",all.x = TRUE)
 
 
